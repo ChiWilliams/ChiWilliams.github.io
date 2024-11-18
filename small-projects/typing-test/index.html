@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <head>
     <style>
-        p, textarea {
+        p:not(#timer), textarea {
             font-family: 'Courier New', Courier, monospace;
             font-size: medium;
             margin: 0px;
@@ -12,15 +12,20 @@
             resize: vertical;
             height: 100px;
         }
+        #timer {
+            padding-left: 10px;
+        }
     </style>
 </head>
 <body>
     <br> <br> <br>
     <h1>Typing test!</h1>
-    <p>The quick brown fox jumped over the lazy dog.</p>
+    <p id="timer"><b>Timer:</b> 0</p>
+    <p id="goal-string">The quick brown fox jumped over the lazy dog.</p>
     <textarea
     rows = 100
     cols = 100></textarea>
+    <h2 id="you-won" style="display:none;">GOOD JOB YOU WON!!</h2>
 
 <script src = "bad-keyboard.js"></script>
 </body>
