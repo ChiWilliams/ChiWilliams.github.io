@@ -22,7 +22,7 @@ textArea.addEventListener('keydown', async e => {
     const isUpper = !(e.key == lowerKey);
     if (LETTERS.includes(lowerKey)) {
         e.preventDefault();
-        //e.stopPropagation();
+        e.stopPropagation();
 
         //transform to new key:
         let newLetter = KEYBOARD[lowerKey];
@@ -44,16 +44,17 @@ textArea.addEventListener('keydown', async e => {
 //it wouldn't be fun if the user can just paste their input
 //so being evil, we prevent them from doing so ...
 addEventListener("paste", (e) => {
-    //e.preventDefault();
+    e.preventDefault();
 });
 
+//check for win condition
 textArea.addEventListener("input", (event) => {
     if (textArea.value == GOAL) {
-        console.log("YOU WON!!")
         gameWon();
     }
   });
 
+//loading the keyboard in a shuffled manner
 function loadKeyboard() {
     let shuffled = LETTERS
         .map(value => ({ value, sort: Math.random() }))
@@ -84,32 +85,3 @@ function gameWon() {
     document.getElementById("you-won").style.display = "block";
 
 }
-
-// function shuffle(array) {
-//     let currentIndex = array.length;
-  
-//     // While there remain elements to shuffle...
-//     while (currentIndex != 0) {
-  
-//       // Pick a remaining element...
-//       let randomIndex = Math.floor(Math.random() * currentIndex);
-//       currentIndex--;
-  
-//       // And swap it with the current element.
-//       [array[currentIndex], array[randomIndex]] = [
-//         array[randomIndex], array[currentIndex]];
-//     }
-//   }
- 
-//   let shuffled = LETTERS
-//     .map(value => ({ value, sort: Math.random() }))
-//     .sort((a, b) => a.sort - b.sort)
-//     .map(({ value }) => value);
-   
-// console.log(shuffled)
-// console.log(LETTERS)
-  
-//   // Used like so
-//   let arr = [2, 11, 37, 42];
-//   shuffle(arr);
-//   console.log(arr);
