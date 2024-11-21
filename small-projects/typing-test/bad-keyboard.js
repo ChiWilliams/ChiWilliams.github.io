@@ -3,12 +3,13 @@ const LETTERS = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p'
 const textArea = document.querySelector('textarea');
 let TIMERSTARTED = false;
 let FINISHED = false;
+let TIME_ELAPSED = 0;
 const GOAL = document.getElementById("goal-string").textContent;
 
 document.addEventListener('DOMContentLoaded', e => {
     KEYBOARD = loadKeyboard();
     textArea.value = "";
-    console.log(KEYBOARD)
+    //console.log(KEYBOARD)
 });
 
 textArea.addEventListener('keydown', async e => {
@@ -44,7 +45,7 @@ textArea.addEventListener('keydown', async e => {
 //it wouldn't be fun if the user can just paste their input
 //so being evil, we prevent them from doing so ...
 addEventListener("paste", (e) => {
-    e.preventDefault();
+    // e.preventDefault();
 });
 
 //check for win condition
@@ -66,22 +67,75 @@ function loadKeyboard() {
 
 async function runTimer() {
     const delay = ms => new Promise(res => setTimeout(res, ms));
-    const timer = document.getElementById("timer")
-    let secs = 0;
     while (!FINISHED) {
         await delay(1000);
-        secs += 1;
-        timer.innerHTML = `<b>Timer:</b> ${secs}`;
+        TIME_ELAPSED += 1;
+        timer.innerHTML = `<b>Timer:</b> ${TIME_ELAPSED}`;
     }
     
 }
 
-function gameWon() {
+async function gameWon() {
     // stop the timer
     FINISHED = true;
     //make textARea disabled
     textArea.disabled = true;
     //show a message:
     document.getElementById("you-won").style.display = "block";
-
+    await setNewScore("Bob", TIME_ELAPSED)
+    const leaderboard = await getHighscores();
+    createTable(leaderboard);
 }
+
+function createTable(leaderboard) {
+    const table = document.getElementById("leaderboard");
+    table.style.display = "block";
+    console.log(leaderboard);
+    leaderboard.forEach(entry => {
+        const row = document.createElement("tr");
+        const nameEntry = document.createElement("td");
+        nameEntry.innerText = entry.name.toUpperCase();
+        const timeEntry = document.createElement("td");
+        timeEntry.innerText = entry.time;
+
+        row.appendChild(nameEntry);
+        row.appendChild(timeEntry);
+        table.appendChild(row);
+    })
+}
+
+async function getHighscores() {
+    return await callAPI('get_high_scores');
+}
+
+function setNewScore(name, time) {
+    return callAPI('set_new_score', 'PUT', {name: name, time: time} );
+}
+
+
+async function callAPI(path, method='GET', body=null) {
+  const url = `http://localhost:8000/${path}`;
+  const baseOptions = {
+    method: method,
+    headers: {
+        'Content-Type': 'application/json'
+    }
+  };
+  const requestParams = body ? {...baseOptions, body: JSON.stringify(body) } : baseOptions
+    
+  try {
+    const response = await fetch(url, requestParams);
+    if (!response.ok) {
+      throw new Error(`Response status: ${response.status}`);
+    }
+
+    if (response.status == 204) {
+        return null;
+    }
+    return await response.json();
+    // console.log(json);
+  } catch (error) {
+    console.error(error.message);
+  }
+}
+
