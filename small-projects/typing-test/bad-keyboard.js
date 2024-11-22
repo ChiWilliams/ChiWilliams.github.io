@@ -45,7 +45,7 @@ textArea.addEventListener('keydown', async e => {
 //it wouldn't be fun if the user can just paste their input
 //so being evil, we prevent them from doing so ...
 addEventListener("paste", (e) => {
-    // e.preventDefault();
+    e.preventDefault();
 });
 
 //check for win condition
@@ -75,6 +75,35 @@ async function runTimer() {
     
 }
 
+async function getName () {
+    const modal = document.getElementById("get-name");
+    const input = document.getElementById("name-input");
+    modal.showModal();
+
+    const isValidEntry = (entry) => {
+        const strippedEntry = entry.replaceAll(/[^a-zA-Z-0-9]/gi, "");
+        return (2 <= strippedEntry.length) && (strippedEntry.length <= 15)
+
+    }
+
+    return new Promise( resolve => {
+        modal.addEventListener("keydown", e => {
+            if (e.key === "Enter") {
+                if (isValidEntry(input.value)) {
+                    modal.close();
+                    // we now make the input upper case
+                    // and get rid of all spaces and special characters
+                    let name = input.value.toUpperCase()
+                    name = name.replaceAll(/[^a-zA-Z-0-9]/gi, "");
+                    resolve(name);
+                } else {
+                    document.getElementById("validation-message").innerHTML = "You must enter a name between 2-15 characters.<br>Only letters and numbers are allowed."
+                }
+            }
+        })
+    });
+}
+
 async function gameWon() {
     // stop the timer
     FINISHED = true;
@@ -82,7 +111,8 @@ async function gameWon() {
     textArea.disabled = true;
     //show a message:
     document.getElementById("you-won").style.display = "block";
-    await setNewScore("Bob", TIME_ELAPSED)
+    const name = await getName();
+    await setNewScore(name, TIME_ELAPSED)
     const leaderboard = await getHighscores();
     createTable(leaderboard);
 }
@@ -133,7 +163,6 @@ async function callAPI(path, method='GET', body=null) {
         return null;
     }
     return await response.json();
-    // console.log(json);
   } catch (error) {
     console.error(error.message);
   }
