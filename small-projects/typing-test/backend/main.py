@@ -1,39 +1,48 @@
-from fastapi import FastAPI, HTTPException
+from typing import Annotated
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
 import re
 
+from sqlmodel import SQLModel, Field, Session, create_engine, select
 
-
-origins = [
-    "http://localhost",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-]
-
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-class LeaderboardEntry(BaseModel):
+class LeaderboardEntry(SQLModel, table = True):
+    id: int | None = Field(default=None, primary_key=True)
     name: str
     time: int
 
-leaderboard: list[LeaderboardEntry] = [
-    LeaderboardEntry(name='saleh', time=15),
-    LeaderboardEntry(name='john', time=16)
-    ]
+sqlite_file_name = "highscores.db"
+sqlite_url = f"sqlite:///{sqlite_file_name}"
+
+connect_args = {"check_same_thread": False}
+engine = create_engine(sqlite_url, connect_args=connect_args)
+
+def create_db_and_tables():
+    SQLModel.metadata.create_all(engine)
+
+def get_session():
+    with Session(engine) as session:
+        yield session
+
+SessionDep = Annotated[Session, Depends(get_session)]
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_db_and_tables()
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/get_high_scores")
-async def get_high_score() -> list[LeaderboardEntry]:
+async def get_high_score(
+    session: SessionDep
+) -> list[LeaderboardEntry]:
     # fetch from db
-    return sorted(leaderboard, key=lambda entry: entry.time)
+    #rewrite as query for top ten times, sorted
+
+    entries = session.exec(select(LeaderboardEntry).order_by(LeaderboardEntry.time)).all()
+    return entries
 
 @app.put("/set_new_score", status_code=204)
 async def set_new_score(score: LeaderboardEntry) -> None:
@@ -51,10 +60,29 @@ async def set_new_score(score: LeaderboardEntry) -> None:
     if 0 >= score.time:
         raise HTTPException(status_code=400, detail="Time must be positive")
     
-    leaderboard.append(score)
-    # commit to db
+    #add element and commit
+    with Session(engine) as session:
+        session.add(LeaderboardEntry(name=name, time=score.time))
+        session.commit()
 
-@app.delete("/admin/reset_scores", status_code=204)
-async def reset_scores() -> None:
-    leaderboard.clear()
-    # clear db
+# @app.delete("/admin/reset_scores", status_code=204)
+# async def reset_scores() -> None:
+#     #rewrite as SQL clear the table
+#     # clear db
+#     pass
+
+    
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+]
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
