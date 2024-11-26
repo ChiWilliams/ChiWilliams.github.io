@@ -38,14 +38,14 @@ textArea.addEventListener('keydown', async e => {
         textArea.value = textBefore + newLetter + textAfter;
         // Set the cursor position correctly
         textArea.selectionStart = textArea.selectionEnd = cursorPosition + 1;
-        console.log("adding letter finished")
+        //console.log("adding letter finished")
     }
 });
 
 //it wouldn't be fun if the user can just paste their input
 //so being evil, we prevent them from doing so ...
 addEventListener("paste", (e) => {
-    // e.preventDefault();
+    e.preventDefault();
 });
 
 //check for win condition
@@ -113,8 +113,12 @@ async function gameWon() {
     document.getElementById("you-won").style.display = "block";
     const name = await getName();
     await setNewScore(name, TIME_ELAPSED)
-    const leaderboard = await getHighscores();
-    createTable(leaderboard);
+    try {
+        const leaderboard = await getHighscores();
+        createTable(leaderboard);
+    } catch (e) {
+        console.error("Error getting table");
+    }
 }
 
 function createTable(leaderboard) {
@@ -144,7 +148,7 @@ function setNewScore(name, time) {
 
 
 async function callAPI(path, method='GET', body=null) {
-  const url = `http://localhost:8000/${path}`;
+  const url = `https://typing.rcdis.co/${path}`;
   const baseOptions = {
     method: method,
     headers: {
