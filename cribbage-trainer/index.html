@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cribbage Discard Trainer</title>
+    <style>
+        body {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: "Times New Roman", Times, serif;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-family: Arial, sans-serif;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .status {
+            text-align: center;
+            padding: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #000;
+        }
+
+        .hand {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .card {
+            width: 80px;
+            height: 112px;
+            border: 2px solid #000;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            background: white;
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .card:hover {
+            background: #eee;
+        }
+
+        .card.selected {
+            border-width: 3px;
+            background: #ddd;
+        }
+
+        .card.disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+        .card .suit {
+            font-size: 36px;
+        }
+
+        .card.red {
+            color: #c00;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            border: 1px solid #000;
+            background: #eee;
+        }
+
+        button:hover:not(:disabled) {
+            background: #ddd;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .result {
+            padding: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+            border: 1px solid #000;
+        }
+
+        details {
+            margin-bottom: 15px;
+        }
+
+        summary {
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        th, td {
+            border: 1px solid #000;
+            padding: 6px;
+            text-align: left;
+        }
+
+        td:not(:first-child) {
+            text-align: right;
+        }
+
+        tr.optimal {
+            font-weight: bold;
+        }
+
+        tr.user-wrong {
+            font-style: italic;
+        }
+
+        .game-over {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .game-over h2 {
+            margin-bottom: 10px;
+        }
+
+        .footnote {
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+            margin-top: 20px;
+        }
+
+        .instruction {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .disclaimer {
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Cribbage Discard Trainer</h1>
+
+    <div id="game"></div>
+
+    <div class="footnote">
+        <p>Hand EV = average score across all 46 possible cut cards</p>
+        <p>Crib EV = Schell table lookup</p>
+    </div>
+
+    <p class="disclaimer">Disclaimer: code was written by an AI.</p>
+
+    <script>
+        // Schell's discard tables (expected crib value)
+        const SCHELL_DEALER = [
+            [5.38, 4.23, 4.52, 5.43, 5.45, 3.85, 3.85, 3.80, 3.40, 3.42, 3.65, 3.42, 3.41],
+            [4.23, 5.72, 7.00, 4.52, 5.45, 3.93, 3.81, 3.66, 3.71, 3.55, 3.84, 3.58, 3.52],
+            [4.52, 7.00, 5.94, 4.91, 5.97, 3.81, 3.58, 3.92, 3.78, 3.57, 3.90, 3.59, 3.67],
+            [5.43, 4.52, 4.91, 5.63, 6.48, 3.85, 3.72, 3.83, 3.72, 3.59, 3.88, 3.59, 3.60],
+            [5.45, 5.45, 5.97, 6.48, 8.79, 6.63, 6.01, 5.48, 5.43, 6.66, 7.00, 6.63, 6.66],
+            [3.85, 3.93, 3.81, 3.85, 6.63, 5.76, 4.98, 4.63, 5.13, 3.17, 3.41, 3.23, 3.13],
+            [3.85, 3.81, 3.58, 3.72, 6.01, 4.98, 5.92, 6.53, 4.04, 3.23, 3.53, 3.23, 3.26],
+            [3.80, 3.66, 3.92, 3.83, 5.48, 4.63, 6.53, 5.45, 4.72, 3.80, 3.52, 3.19, 3.16],
+            [3.40, 3.71, 3.78, 3.72, 5.43, 5.13, 4.04, 4.72, 5.16, 4.29, 3.97, 2.99, 3.06],
+            [3.42, 3.55, 3.57, 3.59, 6.66, 3.17, 3.23, 3.80, 4.29, 4.76, 4.61, 3.31, 2.84],
+            [3.65, 3.84, 3.90, 3.88, 7.00, 3.41, 3.53, 3.52, 3.97, 4.61, 5.33, 4.81, 3.96],
+            [3.42, 3.58, 3.59, 3.59, 6.63, 3.23, 3.23, 3.19, 2.99, 3.31, 4.81, 4.79, 3.46],
+            [3.41, 3.52, 3.67, 3.60, 6.66, 3.13, 3.26, 3.16, 3.06, 2.84, 3.96, 3.46, 4.58],
+        ];
+
+        const SCHELL_PONE = [
+            [6.02, 5.07, 5.07, 5.72, 6.01, 4.91, 4.89, 4.85, 4.55, 4.48, 4.68, 4.33, 4.30],
+            [5.07, 6.38, 7.33, 5.33, 6.11, 4.97, 4.97, 4.94, 4.70, 4.59, 4.81, 4.56, 4.45],
+            [5.07, 7.33, 6.68, 5.96, 6.78, 4.87, 5.01, 5.05, 4.87, 4.63, 4.86, 4.59, 4.48],
+            [5.72, 5.33, 5.96, 6.53, 7.26, 5.34, 4.88, 4.94, 4.68, 4.53, 4.85, 4.46, 4.36],
+            [6.01, 6.11, 6.78, 7.26, 9.37, 7.47, 7.00, 6.30, 6.15, 7.41, 7.76, 7.34, 7.25],
+            [4.91, 4.97, 4.87, 5.34, 7.47, 7.08, 6.42, 5.86, 6.26, 4.31, 4.57, 4.22, 4.14],
+            [4.89, 4.97, 5.01, 4.88, 7.00, 6.42, 7.14, 7.63, 5.26, 4.31, 4.68, 4.32, 4.27],
+            [4.85, 4.94, 5.05, 4.94, 6.30, 5.86, 7.63, 6.82, 5.83, 5.10, 4.59, 4.31, 4.20],
+            [4.55, 4.70, 4.87, 4.68, 6.15, 6.26, 5.26, 5.83, 6.39, 5.43, 4.96, 4.11, 4.03],
+            [4.48, 4.59, 4.63, 4.53, 7.41, 4.31, 4.31, 5.10, 5.43, 6.08, 5.63, 4.61, 3.88],
+            [4.68, 4.81, 4.86, 4.85, 7.76, 4.57, 4.68, 4.59, 4.96, 5.63, 6.42, 5.46, 4.77],
+            [4.33, 4.56, 4.59, 4.46, 7.34, 4.22, 4.32, 4.31, 4.11, 4.61, 5.46, 5.79, 4.49],
+            [4.30, 4.45, 4.48, 4.36, 7.25, 4.14, 4.27, 4.20, 4.03, 3.88, 4.77, 4.49, 5.65],
+        ];
+
+        const SUITS = ['\u2660', '\u2665', '\u2666', '\u2663'];
+        const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        const TOTAL_ROUNDS = 10;
+
+        let hand = [];
+        let isDealer = true;
+        let selectedCards = [];
+        let submitted = false;
+        let round = 1;
+        let totalScore = 0;
+        let gameOver = false;
+        let analysisResults = null;
+
+        function createDeck() {
+            const deck = [];
+            for (let suit = 0; suit < 4; suit++) {
+                for (let rank = 0; rank < 13; rank++) {
+                    deck.push({ suit, rank, id: suit * 13 + rank });
+                }
+            }
+            return deck;
+        }
+
+        function shuffleDeck(deck) {
+            const shuffled = [...deck];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+
+        function cardValue(rank) {
+            return Math.min(rank + 1, 10);
+        }
+
+        function cardName(card) {
+            return RANKS[card.rank] + SUITS[card.suit];
+        }
+
+        function scoreHand(handCards, cutCard, isCrib = false) {
+            const allCards = [...handCards, cutCard];
+            let score = 0;
+
+            // 15s
+            const values = allCards.map(c => cardValue(c.rank));
+            for (let mask = 1; mask < 32; mask++) {
+                let sum = 0;
+                for (let i = 0; i < 5; i++) {
+                    if (mask & (1 << i)) sum += values[i];
+                }
+                if (sum === 15) score += 2;
+            }
+
+            // Pairs
+            const ranks = allCards.map(c => c.rank);
+            for (let i = 0; i < 5; i++) {
+                for (let j = i + 1; j < 5; j++) {
+                    if (ranks[i] === ranks[j]) score += 2;
+                }
+            }
+
+            // Runs
+            score += scoreRuns(ranks);
+
+            // Flush
+            const handSuits = handCards.map(c => c.suit);
+            if (handSuits.every(s => s === handSuits[0])) {
+                if (cutCard.suit === handSuits[0]) {
+                    score += 5;
+                } else if (!isCrib) {
+                    score += 4;
+                }
+            }
+
+            // Nobs
+            for (const card of handCards) {
+                if (card.rank === 10 && card.suit === cutCard.suit) {
+                    score += 1;
+                    break;
+                }
+            }
+
+            return score;
+        }
+
+        function scoreRuns(ranks) {
+            const counts = new Array(13).fill(0);
+            for (const r of ranks) counts[r]++;
+
+            let bestScore = 0;
+            for (let start = 0; start <= 10; start++) {
+                for (let len = 3; len <= 5 && start + len <= 13; len++) {
+                    let isRun = true;
+                    let multiplier = 1;
+                    for (let i = 0; i < len; i++) {
+                        if (counts[start + i] === 0) {
+                            isRun = false;
+                            break;
+                        }
+                        multiplier *= counts[start + i];
+                    }
+                    if (isRun) {
+                        const runScore = len * multiplier;
+                        if (runScore > bestScore) bestScore = runScore;
+                    }
+                }
+            }
+            return bestScore;
+        }
+
+        function calculateHandEV(handCards, excludedCards) {
+            const excludedIds = new Set(excludedCards.map(c => c.id));
+            const deck = createDeck().filter(c => !excludedIds.has(c.id));
+
+            let totalScore = 0;
+            for (const cut of deck) {
+                totalScore += scoreHand(handCards, cut, false);
+            }
+            return totalScore / deck.length;
+        }
+
+        function getCribEV(discard1, discard2, dealer) {
+            const table = dealer ? SCHELL_DEALER : SCHELL_PONE;
+            return table[discard1.rank][discard2.rank];
+        }
+
+        function getAllDiscardOptions(cards) {
+            const options = [];
+            for (let i = 0; i < 6; i++) {
+                for (let j = i + 1; j < 6; j++) {
+                    options.push([cards[i], cards[j]]);
+                }
+            }
+            return options;
+        }
+
+        function analyzeHand() {
+            if (hand.length !== 6) return null;
+
+            const discardOptions = getAllDiscardOptions(hand);
+            const results = discardOptions.map(discard => {
+                const kept = hand.filter(c => !discard.includes(c));
+                const handEV = calculateHandEV(kept, hand);
+                const cribEV = getCribEV(discard[0], discard[1], isDealer);
+                const delta = isDealer ? handEV + cribEV : handEV - cribEV;
+                return { discard, kept, handEV, cribEV, delta };
+            });
+
+            results.sort((a, b) => b.delta - a.delta);
+            return { results, optimalDelta: results[0].delta };
+        }
+
+        function dealNewHand() {
+            const deck = shuffleDeck(createDeck());
+            hand = deck.slice(0, 6);
+            hand.sort((a, b) => a.rank - b.rank);
+            isDealer = Math.random() < 0.5;
+            selectedCards = [];
+            submitted = false;
+            analysisResults = analyzeHand();
+            render();
+        }
+
+        function toggleCard(card) {
+            if (submitted) return;
+            const idx = selectedCards.findIndex(c => c.id === card.id);
+            if (idx >= 0) {
+                selectedCards.splice(idx, 1);
+            } else if (selectedCards.length < 2) {
+                selectedCards.push(card);
+            }
+            render();
+        }
+
+        function handleSubmit() {
+            if (selectedCards.length !== 2) return;
+            submitted = true;
+
+            const userResult = analysisResults.results.find(r =>
+                (r.discard[0].id === selectedCards[0].id && r.discard[1].id === selectedCards[1].id) ||
+                (r.discard[0].id === selectedCards[1].id && r.discard[1].id === selectedCards[0].id)
+            );
+
+            const error = analysisResults.optimalDelta - userResult.delta;
+            totalScore += error;
+            render();
+        }
+
+        function handleNextRound() {
+            if (round >= TOTAL_ROUNDS) {
+                gameOver = true;
+                render();
+            } else {
+                round++;
+                dealNewHand();
+            }
+        }
+
+        function handleNewGame() {
+            round = 1;
+            totalScore = 0;
+            gameOver = false;
+            dealNewHand();
+        }
+
+        function getUserIndex() {
+            if (!submitted || selectedCards.length !== 2) return -1;
+            return analysisResults.results.findIndex(r =>
+                (r.discard[0].id === selectedCards[0].id && r.discard[1].id === selectedCards[1].id) ||
+                (r.discard[0].id === selectedCards[1].id && r.discard[1].id === selectedCards[0].id)
+            );
+        }
+
+        function render() {
+            const gameDiv = document.getElementById('game');
+
+            if (gameOver) {
+                const avgError = totalScore / TOTAL_ROUNDS;
+                let message = 'Keep practicing!';
+                if (totalScore === 0) message = 'Perfect game!';
+                else if (totalScore < 2) message = 'Excellent play!';
+                else if (totalScore < 5) message = 'Good game!';
+
+                gameDiv.innerHTML = `
+                    <div class="game-over">
+                        <h2>Game Over</h2>
+                        <p>Total Error: <strong>${totalScore.toFixed(2)}</strong></p>
+                        <p>${message}</p>
+                        <p style="color: #888; font-size: 14px;">Average error per hand: ${avgError.toFixed(2)} points</p>
+                        <br>
+                        <button  onclick="handleNewGame()">Play Again</button>
+                    </div>
+                `;
+                return;
+            }
+
+            const userIndex = getUserIndex();
+            const currentError = submitted && userIndex >= 0
+                ? analysisResults.optimalDelta - analysisResults.results[userIndex].delta
+                : 0;
+
+            let html = `
+                <div class="header">
+                    <span>Round ${round}/${TOTAL_ROUNDS}</span>
+                    <span>Error: ${totalScore.toFixed(2)}</span>
+                </div>
+
+                <div class="status">
+                    You are the <strong>${isDealer ? 'DEALER' : 'PONE'}</strong>
+                    (${isDealer ? 'maximize hand + crib' : 'maximize hand - crib'})
+                </div>
+
+                <p class="instruction">Select 2 cards to discard:</p>
+
+                <div class="hand">
+                    ${hand.map(card => {
+                        const isRed = card.suit === 1 || card.suit === 2;
+                        const isSelected = selectedCards.some(c => c.id === card.id);
+                        const classes = ['card'];
+                        if (isRed) classes.push('red');
+                        if (isSelected) classes.push('selected');
+                        if (submitted) classes.push('disabled');
+                        return `
+                            <div class="${classes.join(' ')}" onclick="toggleCard(hand[${hand.indexOf(card)}])">
+                                <span>${RANKS[card.rank]}</span>
+                                <span class="suit">${SUITS[card.suit]}</span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+
+            if (!submitted) {
+                html += `
+                    <button  onclick="handleSubmit()" ${selectedCards.length !== 2 ? 'disabled' : ''}>
+                        Submit Discard
+                    </button>
+                `;
+            } else {
+                const optimal = analysisResults.results[0];
+                const userResult = analysisResults.results[userIndex];
+                const isOptimal = Math.abs(userResult.delta - optimal.delta) < 0.001;
+
+                // Find margin over next best (first result with lower delta)
+                const nextBest = analysisResults.results.find(r => r.delta < optimal.delta - 0.001);
+                const margin = nextBest ? (optimal.delta - nextBest.delta).toFixed(2) : null;
+
+                if (isOptimal) {
+                    const marginText = nextBest
+                        ? `<br><small>${margin} points better than: ${cardName(nextBest.discard[0])} ${cardName(nextBest.discard[1])}</small>`
+                        : '<br><small>(all options tied)</small>';
+                    html += `<div class="result">Optimal play!${marginText}</div>`;
+                } else {
+                    html += `
+                        <div class="result">
+                            Error: +${currentError.toFixed(2)} points<br>
+                            <small>Optimal: ${cardName(optimal.discard[0])} ${cardName(optimal.discard[1])}</small>
+                        </div>
+                    `;
+                }
+
+                html += `
+                    <details>
+                        <summary>Show all options</summary>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Discard</th>
+                                    <th>Hand EV</th>
+                                    <th>Crib EV</th>
+                                    <th>Net</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${analysisResults.results.map((opt, i) => {
+                                    const isOptimalRow = Math.abs(opt.delta - optimal.delta) < 0.001;
+                                    let rowClass = '';
+                                    if (isOptimalRow) rowClass = 'optimal';
+                                    else if (i === userIndex) rowClass = 'user-wrong';
+                                    return `
+                                        <tr class="${rowClass}">
+                                            <td>${cardName(opt.discard[0])} ${cardName(opt.discard[1])}${isOptimalRow ? ' \u2713' : ''}${i === userIndex && !isOptimal ? ' \u2717' : ''}</td>
+                                            <td>${opt.handEV.toFixed(2)}</td>
+                                            <td>${isDealer ? '+' : '\u2212'}${opt.cribEV.toFixed(2)}</td>
+                                            <td>${opt.delta.toFixed(2)}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </details>
+                    <button  onclick="handleNextRound()">
+                        ${round >= TOTAL_ROUNDS ? 'See Results' : 'Next Hand'}
+                    </button>
+                `;
+            }
+
+            gameDiv.innerHTML = html;
+        }
+
+        // Initialize
+        dealNewHand();
+    </script>
+</body>
+</html>
