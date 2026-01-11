@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cribbage Trainer - Stats</title>
+    <style>
+        body {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: "Times New Roman", Times, serif;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-family: Arial, sans-serif;
+        }
+
+        .nav {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .nav a {
+            color: inherit;
+        }
+
+        .stats {
+            margin-bottom: 30px;
+        }
+
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .stat-label {
+            font-weight: bold;
+        }
+
+        .graph-container {
+            margin: 30px 0;
+        }
+
+        .graph-title {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 200px;
+            border: 1px solid #000;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            border: 1px solid #000;
+            background: #eee;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            background: #ddd;
+        }
+
+        .disclaimer {
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Stats</h1>
+
+    <div class="nav">
+        <a href="index.html">Back to Trainer</a>
+    </div>
+
+    <div id="content"></div>
+
+    <p class="disclaimer">Disclaimer: code was written by an AI.</p>
+
+    <script>
+        function loadStats() {
+            const data = JSON.parse(localStorage.getItem('cribbageStats') || '{"rounds":[]}');
+            return data.rounds;
+        }
+
+        function calculateMovingAverage(data, windowSize) {
+            const result = [];
+            for (let i = 0; i < data.length; i++) {
+                const start = Math.max(0, i - windowSize + 1);
+                const window = data.slice(start, i + 1);
+                const avg = window.reduce((sum, r) => sum + r.error, 0) / window.length;
+                result.push(avg);
+            }
+            return result;
+        }
+
+        function drawGraph(rounds) {
+            const canvas = document.getElementById('graph');
+            const ctx = canvas.getContext('2d');
+
+            // Set actual pixel dimensions
+            canvas.width = canvas.offsetWidth * 2;
+            canvas.height = canvas.offsetHeight * 2;
+            ctx.scale(2, 2);
+
+            const width = canvas.offsetWidth;
+            const height = canvas.offsetHeight;
+            const padding = 30;
+
+            // Clear canvas
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, width, height);
+
+            if (rounds.length < 2) {
+                ctx.fillStyle = '#888';
+                ctx.font = '14px "Times New Roman"';
+                ctx.textAlign = 'center';
+                ctx.fillText('Need more data to show graph', width / 2, height / 2);
+                return;
+            }
+
+            // Calculate bounds
+            const errors = rounds.map(r => r.error);
+            const maxError = Math.max(...errors, 1);
+            const movingAvg = calculateMovingAverage(rounds, 20);
+
+            const xScale = (width - padding * 2) / (rounds.length - 1);
+            const yScale = (height - padding * 2) / maxError;
+
+            // Draw axes
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, height - padding);
+            ctx.lineTo(width - padding, height - padding);
+            ctx.stroke();
+
+            // Y-axis label
+            ctx.fillStyle = '#000';
+            ctx.font = '12px "Times New Roman"';
+            ctx.textAlign = 'center';
+            ctx.save();
+            ctx.translate(12, height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('Error', 0, 0);
+            ctx.restore();
+
+            // X-axis label
+            ctx.fillText('Round', width / 2, height - 5);
+
+            // Draw individual points (gray)
+            ctx.fillStyle = '#aaa';
+            rounds.forEach((r, i) => {
+                const x = padding + i * xScale;
+                const y = height - padding - r.error * yScale;
+                ctx.beginPath();
+                ctx.arc(x, y, 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Draw moving average line (black)
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            movingAvg.forEach((avg, i) => {
+                const x = padding + i * xScale;
+                const y = height - padding - avg * yScale;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+        }
+
+        function clearData() {
+            if (confirm('Are you sure you want to clear all stats? This cannot be undone.')) {
+                localStorage.removeItem('cribbageStats');
+                render();
+            }
+        }
+
+        function render() {
+            const content = document.getElementById('content');
+            const rounds = loadStats();
+
+            if (rounds.length === 0) {
+                content.innerHTML = `
+                    <div class="no-data">
+                        <p>No data yet.</p>
+                        <p>Play some rounds with tracking enabled to see your stats.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const totalRounds = rounds.length;
+            const totalError = rounds.reduce((sum, r) => sum + r.error, 0);
+            const avgError = totalError / totalRounds;
+            const optimalRounds = rounds.filter(r => r.optimal).length;
+            const optimalRate = (optimalRounds / totalRounds) * 100;
+
+            content.innerHTML = `
+                <div class="stats">
+                    <div class="stat">
+                        <span class="stat-label">Rounds played</span>
+                        <span>${totalRounds}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Total lifetime error</span>
+                        <span>${totalError.toFixed(2)}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Average error per round</span>
+                        <span>${avgError.toFixed(3)}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Optimal play rate</span>
+                        <span>${optimalRate.toFixed(1)}% (${optimalRounds}/${totalRounds})</span>
+                    </div>
+                </div>
+
+                <div class="graph-container">
+                    <p class="graph-title">Error over time (20-round moving average)</p>
+                    <canvas id="graph"></canvas>
+                </div>
+
+                <button onclick="clearData()">Clear All Data</button>
+            `;
+
+            // Draw graph after DOM update
+            setTimeout(() => drawGraph(rounds), 0);
+        }
+
+        render();
+    </script>
+</body>
+</html>

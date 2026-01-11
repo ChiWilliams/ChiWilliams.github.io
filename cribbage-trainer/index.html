@@ -163,10 +163,28 @@
             color: #888;
             margin-top: 40px;
         }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .controls label {
+            margin-right: 20px;
+        }
+
+        .controls a {
+            color: inherit;
+        }
     </style>
 </head>
 <body>
     <h1>Cribbage Discard Trainer</h1>
+
+    <div class="controls">
+        <label><input type="checkbox" id="trackToggle" checked> Track progress</label>
+        <a href="stats.html">View Stats</a>
+    </div>
 
     <div id="game"></div>
 
@@ -386,6 +404,17 @@
             render();
         }
 
+        function saveRound(error, isOptimal) {
+            if (!document.getElementById('trackToggle').checked) return;
+            const stats = JSON.parse(localStorage.getItem('cribbageStats') || '{"rounds":[]}');
+            stats.rounds.push({
+                timestamp: Date.now(),
+                error: error,
+                optimal: isOptimal
+            });
+            localStorage.setItem('cribbageStats', JSON.stringify(stats));
+        }
+
         function handleSubmit() {
             if (selectedCards.length !== 2) return;
             submitted = true;
@@ -396,7 +425,9 @@
             );
 
             const error = analysisResults.optimalDelta - userResult.delta;
+            const isOptimal = Math.abs(error) < 0.001;
             totalScore += error;
+            saveRound(error, isOptimal);
             render();
         }
 
